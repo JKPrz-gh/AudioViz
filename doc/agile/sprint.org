@@ -1,0 +1,12 @@
+#+title:  Sprint Plan
+#+author: JKP
+#+date:   2023-10-03
+
+* TODO Clear Sprint 1 Backlog 10-03 -> 10-13 [0/4]
+- [ ] Install tooling and setup environment
+  - [ ] Singnal Processing Libraries
+  - [ ] Dataviz Libraries
+  - [ ] Git Repo
+- [ ] Get Audio Loading into Python 
+- [ ] Plot Basic Spectrograms 
+- [ ] Plot More advanced Spectorgram 
