@@ -8,20 +8,31 @@ removed from the final release.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pyqtgraph as pg
 import librosa
 
 
 def main() -> None:
     # Y is amplitude vector, sr is sample rate
-    y, sr = librosa.load(librosa.ex('trumpet'))
+    amplitudes, sample_rate = librosa.load(librosa.ex('trumpet'))
 
-    D = librosa.stft(y)  # STFT of y
-    S_db = librosa.amplitude_to_db(np.abs(D), ref=np.max)
+    # Want to use librosa's reassigned spectrograms instead
+    freqs, times, mags = librosa.reassigned_spectrogram(
+        amplitudes,
+        sr=sample_rate,
+        n_fft=4086
+    )
 
-    plt.figure()
-    librosa.display.specshow(S_db)
-    plt.colorbar()
+    mags_db = librosa.amplitude_to_db(np.abs(mags), ref=np.max)
+
+    freqs = np.ravel(freqs)
+    times = np.ravel(times)
+    mags_db = np.ravel(mags_db)
+
+    #c=mags_db
+    plt.scatter(times, freqs, c=mags_db,  s=0.05, cmap='Greys')
     plt.show()
+
 
 
 if __name__ == "__main__":
