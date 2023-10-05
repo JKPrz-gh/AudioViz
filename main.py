@@ -12,6 +12,7 @@ import pyqtgraph.exporters
 import pyqtgraph as pg
 import librosa
 
+NF_DETECT_RESOLUTION = 512
 
 def main() -> None:
     # Y is amplitude vector, sr is sample rate
@@ -26,14 +27,27 @@ def main() -> None:
 
     mags_db = librosa.amplitude_to_db(np.abs(mags), ref=np.max)
 
+    # These are effectively x and y and z co-ordinates
     freqs = np.ravel(freqs)
     times = np.ravel(times)
     mags_db = np.ravel(mags_db)
 
-    #c=mags_db
+    # Put this into a matrix instead
+    sound_data = np.c_[freqs, times, mags_db]
+
+    # Preprocess for sound data 
+    threshold_curve = np.zeros(NF_DETECT_RESOLUTION)
+    for index, tsh_val in np.ndenumerate(np.linspace(mags_db.max(), mags_db.min(), num=NF_DETECT_RESOLUTION)):
+        threshold_curve[index] = (mags_db > tsh_val).sum()
+
+    final_slope = np.abs(threshold_curve[-1] - threshold_curve[-2])
+    
+
+    plt.plot(threshold_curve)
+    
+
     #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
-    plt = pg.plot(times, freqs, pen=None)
-    pg.show
+    plt.show()
 
 
 
