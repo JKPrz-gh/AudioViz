@@ -8,6 +8,7 @@ removed from the final release.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pyqtgraph.exporters
 import pyqtgraph as pg
 import librosa
 
@@ -30,8 +31,9 @@ def main() -> None:
     mags_db = np.ravel(mags_db)
 
     #c=mags_db
-    plt.scatter(times, freqs, c=mags_db,  s=0.05, cmap='Greys')
-    plt.show()
+    #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
+    plt = pg.plot(times, freqs, pen=None)
+    pg.show
 
 
 
