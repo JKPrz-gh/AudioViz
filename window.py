@@ -11,7 +11,7 @@ from pyqtgraph import functions as fn
 from pyqtgraph.Qt import QtCore
 
 # Create a qt app
-app = pg.mkQApp("GLScatterPlotItem Example")
+app = pg.mkQApp("3D scatter plot")
 
 
 def init():
@@ -25,9 +25,9 @@ def init():
     g = gl.GLGridItem()
     w.addItem(g)
 
-    # Create a 3d matrix of zeros to store the positions of particles 
-    # pos3 = np.zeros((no. matrices, no. rows per matrix, no. values per row()))
-    pos3 = np.zeros((100,100,3))
+    # Create a 3d matrix of zeros to store the positions of particles
+    # pos_matrix = np.zeros((no. matrices, no. rows per matrix, no. values per row()))
+    pos_matrix = np.zeros((100, 100, 3))
 
     # Do some sort of magic??? TODO: Investigate me
     # This first part "targets" only the first 2 colums of each of our
@@ -46,26 +46,36 @@ def init():
     # This is used to create a flat grid on the "floor" of
     # the environment, which we scale and position with this [_______]
     # The third dimention is untouched
-    pos3[:, :, :2] = np.mgrid[:100, :100].transpose(1, 2, 0)
+    pos_matrix[:, :, :2] = np.mgrid[:100, :100].transpose(1, 2, 0)
 
     # Turn data into a 10k x 3 matrix
-    pos3 = pos3.reshape(10000,3) * [0.1, 0.1, 1]
-    pos3 = np.concatenate((pos3, pos3 * [-1, -1, 1], pos3 * [-1, 1, 1], pos3 * [1, -1, 1]))
+    pos_matrix = pos_matrix.reshape(10000, 3) * [0.1, 0.1, 1]
+    pos_matrix = np.concatenate((
+        pos_matrix,
+        pos_matrix * [-1, -1, 1],
+        pos_matrix * [-1, 1, 1],
+        pos_matrix * [1, -1, 1]
+    ))
 
     # This is the distance of some point p from origin
     # (pythoagoras theorem)
-    d3 = (pos3**2).sum(axis=1)**0.5
+    dist = (pos_matrix**2).sum(axis=1)**0.5
 
     # Create the scatter plot item
-    sp3 = gl.GLScatterPlotItem(pos=pos3, color=(1, 1, 1, .3), size=0.1, pxMode=False)
+    scatter_plot = gl.GLScatterPlotItem(
+        pos=pos_matrix,
+        color=(1, 1, 1, .3),
+        size=0.1,
+        pxMode=False
+    )
 
     # Add it to the view widget
-    w.addItem(sp3)
-    return sp3, pos3, d3
+    w.addItem(scatter_plot)
+    return scatter_plot, pos_matrix, dist
 
-  
-sp3, pos3, d3 = init()
-    
+
+scatter_plot, pos_matrix, dist = init()
+
 # Declare phase as a float
 phase = 0.
 
@@ -75,17 +85,18 @@ def update():
     # update volume colors
     global phase
     phase -= 0.1
-    
-    ## update surface positions and colors
-    global sp3, d3, pos3
-    z = -np.sin(d3*2+phase)
-    pos3[:, 2] = z
-    color = np.empty((len(d3),4), dtype=np.float32)
+
+    # update surface positions and colors
+    global scatter_plot, dist, pos_matrix
+    z = -np.sin(dist*2+phase)
+    pos_matrix[:, 2] = z
+    color = np.empty((len(dist), 4), dtype=np.float32)
     color[:, 3] = 5
     color[:, 0] = np.clip(z * 3.0, 0, 1)
     color[:, 1] = np.clip(z * 1.0, 0, 1)
     color[:, 2] = np.clip(z ** 3, 0, 1)
-    sp3.setData(pos=pos3, color=color)
+    scatter_plot.setData(pos=pos_matrix, color=color)
+
 
 # Set up a QTimer(part of qt)
 t = QtCore.QTimer()
@@ -99,6 +110,5 @@ t.timeout.connect(update)
 t.start(duration)
 
 
- 
 if __name__ == '__main__':
     pg.exec()
