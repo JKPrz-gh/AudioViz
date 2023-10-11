@@ -22,5 +22,21 @@ def auto_thresh(input_matrix):
     return output_matrix
 
 
+def fundamental_hunt():
+    '''Funtion for fundamental_hunt
+
+    Hunt for fundamental frequency points in 25ms
+    intervals up through thefrequency spectrum,
+    and drop points that probably shouldn't be 
+    in the dataset.
+
+    Plan for this is to extract fundamental
+    from dataset, and use fundamental freq to
+    extract harmonics of that fundamental,
+
+    repeat per voice present in sample
+    '''
+    pass
+
 if __name__ == "__main__":
     pass
