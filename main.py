@@ -37,13 +37,21 @@ def main() -> None:
 
     # Put this into a matrix instead
     sound_data = np.c_[freqs, times, mags_db]
+
+    # Make sure our data is time sorted
+    sound_data = sound_data[sound_data[:, 1].argsort()]
+
     print("Sound data matrix shape:", sound_data.shape)
     
     sound_data = preprocess.auto_thresh(sound_data)
 
+    # Make sure our first data point is at time zero
+    sound_data[:, 1] -= sound_data[0, 1]
+
     #plt.scatter(sound_data[:, 0], sound_data[:, 1], c=sound_data[:, 2], s=0.05, cmap='Greys')
     #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
-    plt.scatter(sound_data[:, 1], sound_data[:, 0], s=0.3)
+    plt.scatter(sound_data[:, 1], sound_data[:, 0], s=1)
+    plt.grid()
     plt.show()
 
 
