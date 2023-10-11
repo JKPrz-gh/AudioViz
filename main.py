@@ -12,6 +12,9 @@ import pyqtgraph.exporters
 import pyqtgraph as pg
 import librosa
 
+import preprocess
+
+
 NF_DETECT_RESOLUTION = 512
 
 def main() -> None:
@@ -34,19 +37,13 @@ def main() -> None:
 
     # Put this into a matrix instead
     sound_data = np.c_[freqs, times, mags_db]
-
-    # Preprocess for sound data 
-    threshold_curve = np.zeros(NF_DETECT_RESOLUTION)
-    for index, tsh_val in np.ndenumerate(np.linspace(mags_db.max(), mags_db.min(), num=NF_DETECT_RESOLUTION)):
-        threshold_curve[index] = (mags_db > tsh_val).sum()
-
-    final_slope = np.abs(threshold_curve[-1] - threshold_curve[-2])
+    print("Sound data matrix shape:", sound_data.shape)
     
+    sound_data = preprocess.auto_thresh(sound_data)
 
-    plt.plot(threshold_curve)
-    
-
+    #plt.scatter(sound_data[:, 0], sound_data[:, 1], c=sound_data[:, 2], s=0.05, cmap='Greys')
     #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
+    plt.scatter(sound_data[:, 1], sound_data[:, 0], s=0.3)
     plt.show()
 
 
