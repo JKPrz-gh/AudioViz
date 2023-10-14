@@ -15,8 +15,6 @@ import librosa
 import preprocess
 
 
-NF_DETECT_RESOLUTION = 512
-
 def main() -> None:
     # Y is amplitude vector, sr is sample rate
     amplitudes, sample_rate = librosa.load(librosa.ex('trumpet'))
@@ -50,7 +48,9 @@ def main() -> None:
 
     #plt.scatter(sound_data[:, 0], sound_data[:, 1], c=sound_data[:, 2], s=0.05, cmap='Greys')
     #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
-    plt.scatter(sound_data[:, 1], sound_data[:, 0], s=1)
+
+    preprocess.fundamental_hunt(sound_data)
+    plt.scatter(sound_data[:, 1], sound_data[:, 0], c=sound_data[:,2], s=1)
     plt.grid()
     plt.show()
 
