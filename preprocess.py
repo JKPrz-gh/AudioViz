@@ -1,6 +1,9 @@
 '''File containing preprocessing functions for audioViz project.'''
 
 import numpy as np
+import scipy.spatial
+
+from settings import FUNDAMENTAL_DETECT_INTERVAL_MS as FDI
 
 
 def auto_thresh(input_matrix):
@@ -22,7 +25,7 @@ def auto_thresh(input_matrix):
     return output_matrix
 
 
-def fundamental_hunt():
+def fundamental_hunt(sound_data):
     '''Funtion for fundamental_hunt
 
     Hunt for fundamental frequency points in 25ms
@@ -36,7 +39,16 @@ def fundamental_hunt():
 
     repeat per voice present in sample
     '''
-    pass
+    # Extract the final time from the array
+    # (which should be time sorted)
+
+    initial_search_zone = sound_data[sound_data[:, 1] <= FDI/1000]
+    start_point = sound_data[np.argmin(initial_search_zone[:,0]), :]
+
+    # Find the next nearest point to that in the array
+    nearest = sound_data[scipy.spatial.KDTree(sound_data).query(start_point)[1]]
+    print(start_point)
+    
 
 if __name__ == "__main__":
     pass
