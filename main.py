@@ -9,6 +9,7 @@ removed from the final release.
 import numpy as np
 import matplotlib.pyplot as plt
 import pyqtgraph.exporters
+import data_classes
 import pyqtgraph as pg
 import librosa
 
@@ -49,10 +50,54 @@ def main() -> None:
     #plt.scatter(sound_data[:, 0], sound_data[:, 1], c=sound_data[:, 2], s=0.05, cmap='Greys')
     #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
 
-    preprocess.fundamental_hunt(sound_data)
-    plt.scatter(sound_data[:, 1], sound_data[:, 0], c=sound_data[:,2], s=1)
+    ### ------------------------------------------------------------------------------------
+    # prescale_x, eps, min_samples
+    # Lower prescale values increase horizontal bias
+    dbs_params = (120, 20, 10) # this should really be a dict or a custom object with a constructor
+
+    cluster_set = data_classes.ClusteredDataSet(sound_data, dbs_params)
+
+    for cluster in cluster_set.clusters:
+        # Make the type checker happy
+        if cluster is None:
+            continue
+
+        plt.scatter(
+            cluster.times,
+            cluster.freqs,
+            c=cluster.color,
+            s=6
+        )
+
+        plt.annotate(
+            f"{cluster.id}",
+            (
+                cluster.times[0],
+                cluster.freqs[0]
+            )
+        )
+
     plt.grid()
     plt.show()
+
+    test_cluster = cluster_set.clusters[5]
+    assert test_cluster is not None
+    plt.scatter(
+        test_cluster.times,
+        test_cluster.freqs,
+        c=test_cluster.color,
+        s=20
+    )
+
+    curve = test_cluster.fit_curve()
+    print(curve)
+    trange = np.linspace(test_cluster.start_time, test_cluster.end_time, num=100)
+    tdata = np.polynomial.polynomial.polyval(trange, curve)
+    plt.scatter(trange, tdata)
+
+    plt.grid()
+    plt.show()
+
 
 
 
