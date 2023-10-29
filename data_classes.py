@@ -1,18 +1,17 @@
 #!/usr/bin/python3
 '''Classes for AudioViz.'''
 
+from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
+import numpy.polynomial.polynomial as np_poly
 import sklearn.cluster as skcl
 import random
 import typing
 
 
-class ClusteredDataSet:
-
-    # Later this will do it's own clustering,
-    # for now just load it in
-
+class ClusterGroupFactory:
+    '''Class Defining a generic ClusteredDataSet'''
     def __init__(self,
                  sound_data: npt.NDArray,
                  dbs_params: typing.Tuple[float, float, float]
@@ -26,9 +25,13 @@ class ClusteredDataSet:
         self.__preprocess(dbs_params)
 
         # Break out data into cluster objects
-        self.clusters: typing.List[typing.Union[None, PointCluster]] \
-            = [None]*self.labels.size
+        self.__clusters: typing.List[typing.Union[None, PointCluster]] \
+            = [None]*self.__labels.size
         self.__create_cluster_objects()
+
+    def get_cluster_group(self) -> ClusterGroup:
+        group = ClusterGroup(self.__clusters)
+        return group
 
     # Private helper Methods
     def __preprocess(self,
@@ -46,14 +49,14 @@ class ClusteredDataSet:
 
         # Add labels as a mix-in
         label_array = db.labels_
-        self.labels = np.arange(0, label_array.max()+1, 1)
+        self.__labels = np.arange(0, label_array.max()+1, 1)
 
         sd_copy = np.vstack((sd_copy.transpose(), label_array)).transpose()
         self.sound_data = sd_copy[sd_copy[:, 3] != -1]
 
     def __create_cluster_objects(self) -> None:
         '''Populate the cluster array'''
-        for index, _ in enumerate(self.clusters):
+        for index, _ in enumerate(self.__clusters):
             # Pull out the relevant points
             cluster_points = self.sound_data[self.sound_data[:, 3] == index]
 
@@ -67,13 +70,22 @@ class ClusteredDataSet:
                 color=cluster_color
             )
 
-            self.clusters[index] = point_cluster
+            self.__clusters[index] = point_cluster
 
     def __str__(self):
-        outstring = f"Labels Array:{self.labels}\n" \
-            + f"with length {self.labels.size}"
+        outstring = f"Labels Array:{self.__labels}\n" \
+            + f"with length {self.__labels.size}"
 
         return outstring
+
+
+class ClusterGroup:
+    '''Main Class for dealing with clusters.'''
+
+    def __init__(self,
+                 clusters: typing.List[typing.Union[None, PointCluster]]
+                 ) -> None:
+        self.clusters = clusters
 
 
 class PointCluster:
@@ -93,13 +105,40 @@ class PointCluster:
         self.color = color
         self.no_points = self.times.size
 
-        self.__populate_matadata()
+        self.__populate_metadata()
 
-    def fit_curve(self) -> typing.Any:
-        curve = np.polynomial.polynomial.Polynomial.fit(self.times, self.freqs, 2)
-        return curve
-        
-    def __populate_matadata(self) -> None:
+    def interpolate_curve(
+            self,
+            points: int = 100,
+            degree: int = 4
+    ) -> typing.Tuple[
+        npt.NDArray,
+        npt.NDArray
+    ]:
+        '''Method to fit a curve to a data cluster.
+
+        This method fits a polynomial of degree {degree}
+        to the points in the cluster, and evaluates that
+        at {points} points.
+
+        Returns a Typle of evaluated x and y values.'''
+        # create the initial curve
+        curve = np_poly.Polynomial.fit(
+            self.times,
+            self.freqs,
+            degree
+        )
+        # Eval that curve at desired number of points
+        x, y = curve.linspace(
+            n=points,
+            domain=[
+                self.start_time,
+                self.end_time
+            ]
+        )
+        return x, y
+
+    def __populate_metadata(self) -> None:
         self.start_time = self.times.min()
         self.end_time = self.times.max()
         self.avg_freq = self.freqs.mean

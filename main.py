@@ -55,7 +55,8 @@ def main() -> None:
     # Lower prescale values increase horizontal bias
     dbs_params = (120, 20, 10) # this should really be a dict or a custom object with a constructor
 
-    cluster_set = data_classes.ClusteredDataSet(sound_data, dbs_params)
+    cluster_factory = data_classes.ClusterGroupFactory(sound_data, dbs_params)
+    cluster_set = cluster_factory.get_cluster_group()
 
     for cluster in cluster_set.clusters:
         # Make the type checker happy
@@ -77,9 +78,11 @@ def main() -> None:
             )
         )
 
+    plt.title("All clusters")
     plt.grid()
     plt.show()
 
+    # Single Test cluster
     test_cluster = cluster_set.clusters[5]
     assert test_cluster is not None
     plt.scatter(
@@ -89,14 +92,42 @@ def main() -> None:
         s=20
     )
 
-    curve = test_cluster.fit_curve()
-    print(curve)
-    trange = np.linspace(test_cluster.start_time, test_cluster.end_time, num=100)
-    tdata = np.polynomial.polynomial.polyval(trange, curve)
-    plt.scatter(trange, tdata)
+    test_x, test_y = test_cluster.interpolate_curve(
+        points=150,
+        degree=4
+    )
+    plt.plot(test_x, test_y, c=test_cluster.color)
 
+    plt.title("Cluster 5 detail")
     plt.grid()
     plt.show()
+
+    # All curves
+    for cluster in cluster_set.clusters:
+        # Make the type checker happy
+        if cluster is None:
+            continue
+
+        cluster_x, cluster_y = cluster.interpolate_curve()
+        plt.plot(
+            cluster_x,
+            cluster_y,
+            c=cluster.color,
+            linewidth=2
+        )
+
+        plt.annotate(
+            f"{cluster.id}",
+            (
+                cluster.times[0],
+                cluster.freqs[0]
+            )
+        )
+
+    plt.title("Cluster Curves")
+    plt.grid()
+    plt.show()
+
 
 
 
