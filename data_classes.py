@@ -190,16 +190,21 @@ class ClusterGroup:
         see what results in near integer ratios.'''
         fundamental_cluster = self.get_cluster_with_id(in_id)
         assert fundamental_cluster is not None
-        fund_freq = fundamental_cluster.avg_freq
 
         outlist = []
         for cluster in self.clusters:
-            assert cluster is not None
-            ratio = cluster.avg_freq/fund_freq
+            harmonic_freq = cluster.freq_at_time(cluster.cluster_center)
+            fundamental_freq = fundamental_cluster\
+                .freq_at_time(cluster.cluster_center)
+
+            ratio = harmonic_freq/fundamental_freq
             if ratio < 1:
                 continue
 
-            if math.isclose(ratio, round(ratio), abs_tol=0.08):
+            if math.isnan(ratio):
+                continue
+            
+            if math.isclose(ratio, round(ratio), abs_tol=0.1):
                 outlist.append(cluster)
 
         return ClusterGroup(outlist)
@@ -281,13 +286,21 @@ class PointCluster:
         self.__populate_metadata()
 
     def freq_at_time(self, time: float) -> float:
+        '''Method for returning a frequency at a Given time'''
 
-        if (time < self.start_time) or time (time > self.end_time):
+        if (time < self.start_time) or (time > self.end_time):
             return float('NaN')
 
         nearest_points = []
         
         # Evalutate closest 4 points at time
+        distances = np.abs(self.times - time)
+        n = 4
+        
+        idx = np.argpartition(distances, n)
+        freq = self.freqs[idx[:n]].mean()
+        
+        return freq
         
 
     def interpolate_curve( #NB: ADD 3D FITTING TO ME!

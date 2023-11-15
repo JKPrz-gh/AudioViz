@@ -8,10 +8,8 @@ removed from the final release.
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pyqtgraph.exporters
 import data_classes
-import cluster_grapher
-import pyqtgraph as pg
+import plot_module
 import librosa
 
 import preprocess
@@ -20,14 +18,32 @@ import preprocess
 def main() -> None:
     # Y is amplitude vector, sr is sample rate
     amplitudes, sample_rate = librosa.load(librosa.ex('trumpet'))
+    #amplitudes, sample_rate = librosa.load(
+    #    '/Users/janprzybyszewski/Documents/AudioViz/LongTrumpet.wav'
+    #)
+    # amplitudes = librosa.effects.harmonic(amplitudes, margin=1)
 
+    times = np.zeros(len(amplitudes))
+    for index, _ in enumerate(amplitudes):
+        times[index] = (1/sample_rate)*index
+    plt.figure()
+    plt.plot(times, amplitudes, linewidth=0.25, color='mediumorchid')
+    plt.xlim([0, 3.5])
+    plt.grid(color='gray')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Signal Amplitude')
+    plt.title('Time Domain Signal')
+
+    grapher = plot_module.PlotWriter()
+    grapher.plot_spectrogram(amplitudes, sample_rate)
+    
     # Want to use librosa's reassigned spectrograms instead
     freqs, times, mags = librosa.reassigned_spectrogram(
         amplitudes,
         sr=sample_rate,
         n_fft=4086
     )
-
+    
     mags_db = librosa.amplitude_to_db(np.abs(mags), ref=np.max)
 
     # These are effectively x and y and z co-ordinates
@@ -35,6 +51,15 @@ def main() -> None:
     times = np.ravel(times)
     mags_db = np.ravel(mags_db)
 
+    plt.figure()
+    plt.scatter(times, freqs, c=mags_db, s=0.3, cmap='gist_gray')
+    plt.xlim([0, 3.5])
+    plt.ylim([200, 3400])
+    plt.xlabel('Time (s)')
+    plt.ylabel('Frequency (Hz)')
+    plt.title("Reassigned Spectrogram")
+    plt.grid(color='gray')
+    
     # Put this into a matrix instead
     sound_data = np.c_[freqs, times, mags_db]
 
@@ -49,9 +74,11 @@ def main() -> None:
     sound_data[:, 1] -= sound_data[0, 1]
 
     #plt.scatter(sound_data[:, 0], sound_data[:, 1], c=sound_data[:, 2], s=0.05, cmap='Greys')
-    #plt.scatter(times, freqs, c=mags_db, s=0.05, cmap='Greys')
+    
 
-    colorlist = ['#FF3333', '#3333FF', '#33FF33', '#33AAAA', '#AA33AA', '#AAAA33', '#3F3FAA']
+    colorlist = [ "#358BAC", "#809AAF", "#FB7CA8", "#6935B3", "#3EBF70", "#0CCE8A",
+        "#2847E0", "#C24606", "#559BB5", "#D0D658", "#C42C34", "#F77C34"
+        ]
     
     ### ------------------------------------------------------------------------------------
     # prescale_x, eps, min_samples
@@ -60,34 +87,9 @@ def main() -> None:
 
     cluster_factory = data_classes.ClusterGroupFactory(sound_data, dbs_params)
     cluster_set = cluster_factory.get_cluster_group()
-    grapher = cluster_grapher.ClusterGrapher()
 
-    # Just the cluster data
-    for cluster in cluster_set.clusters:
-        # Make the type checker happy
-        if cluster is None:
-            continue
+    grapher.plot_scatterplot([cluster_set])
 
-        plt.scatter(
-            cluster.times,
-            cluster.freqs,
-            c=cluster.color,
-            s=6
-        )
-
-        plt.annotate(
-            f"{cluster.id}",
-            (
-                cluster.times[0],
-                cluster.freqs[0]
-            )
-        )
-
-    plt.title("All clusters")
-    plt.grid()
-    plt.show()
-
-    # Maybe show a single fitting?
     plotlist = []
 
     # All curves
@@ -100,7 +102,7 @@ def main() -> None:
         h_stack = c_subset.get_harmonic_stack(lowest_id)
         cluster_set = cluster_set ^ h_stack
 
-        h_stack.set_color(colorlist[index % 7])
+        h_stack.set_color(colorlist[index % 12])
 
         plotlist.append(h_stack)
         index += 1

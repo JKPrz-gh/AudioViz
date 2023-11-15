@@ -11,7 +11,7 @@ def auto_thresh(input_matrix):
     # This is currently just a placeholder
 
     print("Loading in input matrix with following dimentions:", input_matrix.shape)
-    thresh_dB = -20
+    thresh_dB = -22
 
     # Preprocess for sound data 
     #threshold_curve = np.zeros(NF_DETECT_RESOLUTION)
