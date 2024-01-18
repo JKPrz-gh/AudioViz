@@ -6,25 +6,180 @@ import numpy as np
 import numpy.typing as npt
 import numpy.polynomial.polynomial as np_poly
 import sklearn.cluster as skcl
+import librosa
+import soundfile as sf
 import random
 import math
+import binascii
+import io
 import re
+import copy
 import typing
+from typing import Union, Dict, Any
+import pandas as pd
+import settings
+
+
+class AudioFile:
+    '''Class Defining an Audio File.
+
+    Attributes:
+        path (str):
+        threshold (int)
+        amplitudes:
+        sample_rate
+        length
+    '''
+    def __init__(self,
+                 file_descriptor: Union[int, None], 
+                 harmonic_filtering: Union[int, None] = None,
+                 threshold: int = -21,
+                 ) -> None:
+        '''Create a new instance of an AudioFile.
+
+        Args:
+            file_descriptor (int): an open file descriptor
+        '''
+        self.threshold = threshold
+        
+        if file_descriptor is None:
+            pass
+        else:
+            self.fd = file_descriptor
+            self.__load_file(harmonic_filtering)
+
+    def raw_data(self) -> tuple(npt.NDArray, int):
+        '''Get the raw data returned by librosa.
+
+        Returns:
+             returntype
+        '''
+        return (self.amplitudes, self.sample_rate)
+
+    def as_df(self) -> pd.DataFrame:
+        '''Get the data as a Pandas Dataframe.'''
+        df = pd.DataFrame()
+
+        df['Amplitude'] = self.amplitudes
+        df['Time'] = df.index*(1/self.sample_rate)
+
+        return df
+
+    def get_reassigned_points(self) -> TimeFrequencyData:
+        '''Use a Reassigned Spectrogram to compute points.'''
+        freqs, times, mags = librosa.reassigned_spectrogram(
+            self.amplitudes,
+            sr=self.sample_rate,
+            n_fft=4086
+        )
+
+        mags_db = librosa.amplitude_to_db(np.abs(mags), ref=np.max)
+
+        # These are effectively x and y and z co-ordinates
+        freqs = np.ravel(freqs)
+        times = np.ravel(times)
+        mags_db = np.ravel(mags_db)
+
+        sound_data = np.c_[freqs, times, mags_db]
+        sound_data = sound_data[sound_data[:, 2] >= self.threshold]
+
+        # Make sure our data is time sorted
+        sound_data = sound_data[sound_data[:, 1].argsort()]
+
+        # Make sure our first data point is at time zero
+        sound_data[:, 1] -= sound_data[0, 1]
+
+        outData = TimeFrequencyData(
+            sound_data
+        )
+
+        return outData
+        
+    def __load_file(self, harmonic_filtering) -> None:
+        amplitudes, sample_rate = librosa.load(self.fd, sr=22050)
+
+        if harmonic_filtering is not None:
+            amplitudes = librosa.effects.harmonic(amplitudes, margin=harmonic_filtering)
+
+        self.amplitudes = amplitudes
+        self.sample_rate = sample_rate
+        self.length = (1/sample_rate)*len(amplitudes)
+
+
+    @classmethod
+    def from_pathstring(cls, input_path: str):
+        return cls(open(input_path, 'rb'))
+
+    @classmethod
+    def from_bytes(cls, input_data: bytes):
+        return cls(io.BytesIO(input_data))
+        
+        
+class TimeFrequencyData:
+    '''Class for holding Time Frequency data with Decibel magnitude.
+
+    This class exists as a wrapper for the underlying numpy
+    arrays.
+
+    Attributes:
+        data (NDArray): 3xN array holding data points.
+    '''
+    def __init__(self,
+                 t_f_data: npt.NDArray,
+                 ) -> None:
+        '''Create a new instance of TimeFrequencyData.
+
+        Args:
+            t_f_data: A 3xN array holding Time-Frequency information.
+        '''
+        self.__check_input(t_f_data)
+        self.data = t_f_data
+
+    def get_freqs(self) -> npt.NDArray:
+        return self.data[:, 0]
+
+    def get_times(self) -> npt.NDArray:
+        return self.data[:, 1]
+     
+    def get_mags_db(self) -> npt.NDArray:
+        return self.data[:, 2]
+
+    def as_df(self) -> pd.DataFrame:
+        '''Return Contained data as a Pandas DataFrame.
+
+        Returns:
+            pd.DataFrame containing time-frequency data.
+        '''
+        df = pd.DataFrame()
+
+        df['Frequency'] = self.data[:, 0]
+        df['Time'] = self.data[:, 1]
+        df['DecibelMagnitude'] = self.data[:, 2]
+
+        return df
+
+    def __check_input(self, t_f_data) -> None:
+        '''Function for Sanitizing inputs.
+
+        Raises:
+            pass
+        '''
+        pass
 
 
 class ClusterGroupFactory:
     '''Class Defining a generic ClusteredDataSet'''
     def __init__(self,
-                 sound_data: npt.NDArray,
-                 dbs_params: typing.Tuple[float, float, float]
+                 sound_data: TimeFrequencyData,
+                 prescale_x: typing.Tuple[float]
                  ) -> None:
         '''Constructor for ClusteredDataSet.
 
         This method loads in a dataset and breaks
         it out into clusters.'''
         # load in data and preprocess it
-        self.sound_data = sound_data
-        self.__preprocess(dbs_params)
+        self.sound_data = sound_data.data
+        self.__preprocess(prescale_x)
 
         # Break out data into cluster objects
         self.__clusters: typing.List[typing.Union[None, PointCluster]] \
@@ -37,16 +192,15 @@ class ClusterGroupFactory:
 
     # Private helper Methods
     def __preprocess(self,
-                     dbs_params: typing.Tuple[float, float, float]
+                     prescale_x,
                      ) -> None:
         '''Threshold and cluster data'''
         # Unpack our input tuple
-        prescale_x, eps, min_samples = dbs_params
         sd_copy = self.sound_data
 
         # Apply the prescale factor and cluster
         sd_copy[:, 1] *= prescale_x
-        db = skcl.DBSCAN(eps=20, min_samples=10).fit(sd_copy)
+        db = skcl.HDBSCAN().fit(sd_copy)
         sd_copy[:, 1] /= prescale_x
 
         # Add labels as a mix-in
@@ -74,12 +228,6 @@ class ClusterGroupFactory:
 
             self.__clusters[index] = point_cluster
 
-    def __str__(self):
-        outstring = f"Labels Array:{self.__labels}\n" \
-            + f"with length {self.__labels.size}"
-
-        return outstring
-
 
 class ClusterGroup:
     '''Main Class for dealing with clusters.'''
@@ -102,16 +250,17 @@ class ClusterGroup:
         else:
             return False
 
-    def has_member(self, input: typing.Union[int, PointCluster]):
+    def has_member(self, input_data: typing.Union[int, PointCluster]):
         '''Check if given cluster is member of group.
 
         This function can be provided a cluster ID or an
         actual cluster,'''
-        if input is int:
-            input_id = input
+        if isinstance(input_data, int):
+            input_id = input_data
+            print(f"Got an integer! {input_id} btw!")
         else:
-            if isinstance(input, PointCluster):
-                input_id = input.id
+            if isinstance(input_data, PointCluster):
+                input_id = input_data.id
 
             else:
                 raise TypeError
@@ -122,10 +271,24 @@ class ClusterGroup:
 
         return False
 
-    def get_cluster_with_id(self, id: int) -> typing.Union[None, PointCluster]:
+    def query_member(self, input_id: int) -> Dict[Any]:
+        '''Get information about a cluster in the group.
+
+        Method wrraping around the PointCluster.info()
+        method, returning none if the cluster is not present.
+        '''
+        cluster = self.get_cluster_with_id(input_id)
+
+        if cluster is None:
+            return None
+        else:
+            return cluster.info()
+        
+
+    def get_cluster_with_id(self, input_id: int) -> typing.Union[None, PointCluster]:
         for cluster in self.clusters:
             assert cluster is not None
-            if cluster.id == id:
+            if cluster.id == input_id:
                 return cluster
 
         return None
@@ -204,10 +367,32 @@ class ClusterGroup:
             if math.isnan(ratio):
                 continue
             
-            if math.isclose(ratio, round(ratio), abs_tol=0.1):
+            if math.isclose(ratio, round(ratio), abs_tol=0.2):
                 outlist.append(cluster)
 
         return ClusterGroup(outlist)
+
+    def get_harmonic_stack_groups(self) -> list[ClusterGroup]:
+        '''Get Multiple Harmonic Stack Groups.'''
+        colorlist = [ "#358BAC", "#809AAF", "#FB7CA8", "#6935B3", "#3EBF70", "#0CCE8A",
+        "#2847E0", "#C24606", "#559BB5", "#D0D658", "#C42C34", "#F77C34"]
+        iters = 0
+        outlist = []
+
+        cs_copy = copy.deepcopy(self)
+        
+        while not cs_copy.is_empty() and (iters < 200):
+            lowest_id = cs_copy.get_lowest_cluster_id()
+            c_subset = cs_copy.get_coinciding_clusters(lowest_id)
+            h_stack = c_subset.get_harmonic_stack(lowest_id)
+            cs_copy = cs_copy ^ h_stack
+            
+            h_stack.set_color(colorlist[iters % 12])
+
+            outlist.append(h_stack)
+            iters += 1
+
+        return outlist
 
     def set_color(self, color: str) -> None:
         '''Set the cluster to a named or hex color.'''
@@ -257,6 +442,23 @@ class ClusterGroup:
     def __or__(self, other: ClusterGroup) -> None:
         pass
 
+    def __str__(self) -> None:
+
+        outstring = f"ClusterGroup containing {len(self.clusters)} clusters. \n [ "
+
+        count = 0
+        for cluster in self.clusters:
+            outstring += " {:3d} ".format(cluster.id)
+
+            if (count % 11) == 10:
+                outstring += " \n   "
+
+            count += 1
+    
+        outstring += ']'
+  
+        return outstring
+
 
 class PointCluster:
     '''A Class defining a single data cluster.'''
@@ -269,12 +471,16 @@ class PointCluster:
     # if too clusters are identical or not
     # And then perform "bitwise" operations
     # on them (investigate bitwise operator overloading???)
+    #
+    # Later note:
+    #     Do I really need this?
     def __init__(self,
                  points_data: npt.NDArray,
                  cluster_id: int,
                  color: str,
                  ) -> None:
         '''Constructor class for a cluster of Points.'''
+        # Read in data from call
         self.times = points_data[:, 1]
         self.freqs = points_data[:, 0]
         self.mags_db = points_data[:, 2]
@@ -283,29 +489,35 @@ class PointCluster:
         self.color = color
         self.no_points = self.times.size
 
+        # Run the metadata population function
         self.__populate_metadata()
 
     def freq_at_time(self, time: float) -> float:
         '''Method for returning a frequency at a Given time'''
 
+        # Return a NaN if try to query a frequency outside
+        # the expected frequency range
         if (time < self.start_time) or (time > self.end_time):
             return float('NaN')
 
+        # Init the array of points used to compute
+        # the average frequency
         nearest_points = []
         
         # Evalutate closest 4 points at time
         distances = np.abs(self.times - time)
         n = 4
-        
+
+        # Parse the closest points in order
+        # to get the frequencies
         idx = np.argpartition(distances, n)
         freq = self.freqs[idx[:n]].mean()
         
         return freq
         
 
-    def interpolate_curve( #NB: ADD 3D FITTING TO ME!
+    def interpolate_curve(
             self,
-            points: int = 100,
             degree: int = 4
     ) -> typing.Tuple[
         npt.NDArray,
@@ -314,29 +526,77 @@ class PointCluster:
         '''Method to fit a curve to a data cluster.
 
         This method fits a polynomial of degree {degree}
-        to the points in the cluster, and evaluates that
-        at {points} points.
+        to the points in the cluster.
 
         Returns a Typle of evaluated x and y values.'''
-        # create the initial curve
-        curve = np_poly.Polynomial.fit(
+        # create the initial curve by fitting a polynomial
+        curve_freq = np_poly.Polynomial.fit(
             self.times,
             self.freqs,
             degree
         )
-        # Eval that curve at desired number of points
-        x, y = curve.linspace(
+
+        # Do the same for the power curve of the data
+        curve_power = np_poly.Polynomial.fit(
+            self.times,
+            self.mags_db,
+            2
+        )
+
+        # Want the same point density for clusters
+        # of all lengths, so use a constant sample rate
+        # Note:
+        #    Duration is a float, but I_S_R is a large number,
+        #    so minimal information is lost from it cast
+        points = int(settings.INTERPOLATION_SAMPLE_RATE*self.duration)
+
+        # Evalutate frequency curve at at the number of points
+        # requessted
+        x, y = curve_freq.linspace(
             n=points,
             domain=[
                 self.start_time,
                 self.end_time
             ]
         )
-        return x, y
+
+        # Do the same for the power curve, which will have
+        # the same x values as the frequency curve,
+        # so those can be discarded
+        _, z = curve_power.linspace(
+            n=points,
+            domain=[
+                self.start_time,
+                self.end_time
+                ]
+        )
+        return x, y, z
+
+    def info(self) -> Dict[Any]:
+        '''Get information about a specific cluster.
+
+        Function returns a dict of values with
+        details of a cluster's contents.
+        '''
+        infodict = {
+            'id': self.id,
+            'numPoints': self.no_points,
+            'color': self.color,
+            'startTime': self.start_time,
+            'endTime': self.end_time,
+            'duration': self.duration,
+            'clusterMidpoint': self.cluster_center,
+            'meanFrequency': self.avg_freq,
+            'originDistance': self.origin_distance,
+        }
+
+        return infodict
 
     def __populate_metadata(self) -> None:
+        '''Function for creating cluster metadata.'''
         self.start_time = self.times.min()
         self.end_time = self.times.max()
+        self.duration = self.end_time - self.start_time
         self.cluster_center = \
             (self.start_time + self.end_time)/2
         self.avg_freq = self.freqs.mean()

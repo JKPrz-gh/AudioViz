@@ -1,0 +1,25 @@
+body {
+    margin: 0;
+    background-color: #000000;
+}
+
+button {
+    width:80%;
+    height:60px;
+    background-color: #111111;
+    color: black;
+    border: 2px solid #FFFFFF; /* Green */
+    border-radius:25px;
+    transition-duration: 0.2s;
+    color: white;
+}
+
+button:hover {
+    background-color: #646CEE; /* Green */
+    color: white;
+}
+
+button:active {
+    background-color: #b84c7d;
+    color: white;
+}
